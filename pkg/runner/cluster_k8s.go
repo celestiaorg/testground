@@ -252,6 +252,7 @@ func (c *ClusterK8sRunner) Run(ctx context.Context, input *api.RunInput, ow *rpc
 	}
 
 	if !enoughResources {
+		cfg.AutoscalerEnabled = true
 		if cfg.AutoscalerEnabled {
 			ow.Warnw("too many test instances requested, will have to wait for cluster autoscaler to kick in")
 		} else {
@@ -1179,6 +1180,8 @@ func (c *ClusterK8sRunner) GetClusterCapacity() (int64, int64, error) {
 		return 0, 0, err
 	}
 
+	//autoScaler := client.AutoscalingV1().HorizontalPodAutoscalers("default")
+	//autoScaler.Update(context.TODO(), )
 	var allocatableCPUs int64
 	var allocatableMemory int64
 	var capacityCPUs int64
