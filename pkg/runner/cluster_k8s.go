@@ -367,19 +367,10 @@ func (c *ClusterK8sRunner) Run(ctx context.Context, input *api.RunInput, ow *rpc
 					Name:  "TEST_OUTPUTS_PATH",
 					Value: fmt.Sprintf("/outputs/%s/%s/%d", input.RunID, g.ID, i),
 				})
-
-				return c.createTestplanPod(ctx, podName, input, runenv, currentEnv, g, i, podMemory, podCPU)
-			})
-		}
-	}
-
-	for _, g := range input.Groups {
-		runId := input.RunID
-		id := g.ID
-		for i := 0; i < g.Instances; i++ {
-			i := i
-			go func() {
-				podName := fmt.Sprintf("%s-%s-%s-%d", jobName, runId, id, i)
+				err = c.createTestplanPod(ctx, podName, input, runenv, currentEnv, g, i, podMemory, podCPU)
+				if err != nil {
+					return err
+				}
 				ow.Debugw("start fetching logs", "podName", podName)
 				defer func() {
 					ow.Debugw("stop fetching logs", "podName", podName)
@@ -394,26 +385,28 @@ func (c *ClusterK8sRunner) Run(ctx context.Context, input *api.RunInput, ow *rpc
 				for {
 					select {
 					case <-ctx.Done():
-						return
+						return ctx.Err()
 					default:
 					}
 					data, err := io.ReadAll(lr)
 					if err != nil {
 						if err == io.EOF {
-							return
+							return nil
 						}
 						ow.Errorw("during reading from stream", "err", err, "podName", podName)
 					}
 					ow.WriteProgress(data)
 				}
-			}()
+			})
 		}
 	}
 
 	err = eg.Wait()
 	if err != nil {
-		runerr = err
-		return
+		if err != context.Canceled && err != context.DeadlineExceeded {
+			runerr = err
+			return
+		}
 	}
 
 	if !cfg.KeepService {
