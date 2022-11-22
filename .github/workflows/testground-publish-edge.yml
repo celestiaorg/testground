@@ -29,11 +29,11 @@ jobs:
           push: true
           tags: "ghcr.io/${{ github.repository }}:testground"
           file: ./Dockerfile.testground
-          platforms: linux/arm64,linux/amd64
+          platforms: linux/amd64
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
           push: true
           tags: "ghcr.io/${{ github.repository }}:sidecar"
           file: ./Dockerfile.sidecar
-          platforms: linux/arm64,linux/amd64
+          platforms: linux/amd64
