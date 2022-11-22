@@ -3,32 +3,6 @@ on:
   push:
     branches:
       - master
-  schedule:
-    # we release the `edge` binary as an output artifact (see below).
-    # Because these artifacts have a 90 days maximum retention period,
-    # this cron makes sure we always have an `:edge` artifact available.
-    - cron: "0 0 1 * *"
-
-jobs:
-  binaries:
-    runs-on: ubuntu-latest
-    steps:
-    - name: checkout
-      uses: actions/checkout@v3
-    - name: Setup Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: "1.16.x"
-        cache: true
-    - name: Build Testground
-      run: go build -ldflags "-X github.com/celestiaorg/testground/pkg/version.GitCommit=${GITHUB_SHA}" .
-      shell: bash
-    - uses: actions/upload-artifact@v3
-      with:
-        name: testground-release
-        path: |
-          ./testground
-          ./static
 
   docker:
     runs-on: ubuntu-latest
@@ -51,13 +25,13 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags: "ghcr.io/${{ github.repository }}:testground-edge"
+          tags: "ghcr.io/${{ github.repository }}:testground"
           file: ./Dockerfile.testground
           platforms: linux/arm64,linux/amd64
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags: "ghcr.io/${{ github.repository }}:sidecar-edge"
+          tags: "ghcr.io/${{ github.repository }}:sidecar"
           file: ./Dockerfile.sidecar
           platforms: linux/arm64,linux/amd64
