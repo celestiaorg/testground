@@ -20,12 +20,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/testground/sdk-go/ptypes"
-
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"github.com/testground/sdk-go/ptypes"
 	"github.com/testground/sdk-go/runtime"
 	ss "github.com/testground/sdk-go/sync"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/testground/testground/pkg/api"
 	"github.com/testground/testground/pkg/aws"
 	"github.com/testground/testground/pkg/conv"
@@ -33,7 +34,6 @@ import (
 	"github.com/testground/testground/pkg/logging"
 	"github.com/testground/testground/pkg/rpc"
 	"github.com/testground/testground/pkg/task"
-	"golang.org/x/sync/errgroup"
 
 	v1 "k8s.io/api/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -373,43 +373,42 @@ func (c *ClusterK8sRunner) Run(ctx context.Context, input *api.RunInput, ow *rpc
 		}
 	}
 
-	// we want to fetch logs even in an event of error
-	defer func() {
-		if input.TotalInstances <= 200 {
-			var gg errgroup.Group
-
-			for _, g := range input.Groups {
-				for i := 0; i < g.Instances; i++ {
-					i := i
-					g := g
-					sem <- struct{}{}
-
-					gg.Go(func() error {
-						defer func() { <-sem }()
-
-						podName := fmt.Sprintf("%s-%s-%s-%d", jobName, input.RunID, g.ID, i)
-
-						ow.Debugw("fetching logs", "pod", podName)
-						logs, err := c.getPodLogs(ow, podName)
-						if err != nil {
-							return err
-						}
-						ow.Debugw("got logs", "pod", podName, "len", len(logs))
-
-						_, err = ow.WriteProgress([]byte(logs))
-						return err
-					})
+	for _, g := range input.Groups {
+		runId := input.RunID
+		id := g.ID
+		for i := 0; i < g.Instances; i++ {
+			i := i
+			go func() {
+				podName := fmt.Sprintf("%s-%s-%s-%d", jobName, runId, id, i)
+				ow.Debugw("start fetching logs", "podName", podName)
+				defer func() {
+					ow.Debugw("stop fetching logs", "podName", podName)
+				}()
+				logsStream, err := c.getPodLogsStream(ctx, podName)
+				if err != nil {
+					ow.Errorw("during creating a log stream", "err", err, "podName", podName)
 				}
-			}
-
-			err = gg.Wait()
-			if err != nil {
-				ow.Errorw("error while fetching logs", "err", err.Error())
-			}
-
-			ow.Debugw("done getting logs")
+				defer logsStream.Close()
+				lr := byline.NewReader(logsStream)
+				lr.MapString(func(line string) string { return podName + " | " + line })
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+					data, err := io.ReadAll(lr)
+					if err != nil {
+						if err == io.EOF {
+							return
+						}
+						ow.Errorw("during reading from stream", "err", err, "podName", podName)
+					}
+					ow.WriteProgress(data)
+				}
+			}()
 		}
-	}()
+	}
 
 	err = eg.Wait()
 	if err != nil {
@@ -655,6 +654,24 @@ func (c *ClusterK8sRunner) ensureCollectOutputsPod(ctx context.Context, input *a
 	}
 
 	return nil
+}
+
+func (c *ClusterK8sRunner) getPodLogsStream(ctx context.Context, podName string) (io.ReadCloser, error) {
+	client := c.pool.Acquire()
+	defer c.pool.Release(client)
+
+	podLogOpts := v1.PodLogOptions{
+		LimitBytes: int64Ptr(10000000000), // 100mb
+	}
+
+	podLogs, err := retryStream(5, 5*time.Second, func() (io.ReadCloser, error) {
+		req := client.CoreV1().Pods(c.config.Namespace).GetLogs(podName, &podLogOpts)
+		return req.Stream(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return podLogs, nil
 }
 
 func (c *ClusterK8sRunner) getPodLogs(ow *rpc.OutputWriter, podName string) (string, error) {
