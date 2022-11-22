@@ -51,13 +51,13 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags: "${{ github.repository }}/testground:edge"
+          tags: "${{ github.repository }}-testground:edge"
           file: ./Dockerfile.testground
           platforms: linux/arm64,linux/amd64
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags: "${{ github.repository }}/sidecar:edge"
+          tags: "${{ github.repository }}-sidecar:edge"
           file: ./Dockerfile.sidecar
           platforms: linux/arm64,linux/amd64
