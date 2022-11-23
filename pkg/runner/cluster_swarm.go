@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/testground/sdk-go/ptypes"
-	"github.com/testground/sdk-go/runtime"
-	"golang.org/x/sync/errgroup"
 
+	"github.com/testground/sdk-go/runtime"
 	"github.com/testground/testground/pkg/api"
 	"github.com/testground/testground/pkg/aws"
 	"github.com/testground/testground/pkg/conv"
 	"github.com/testground/testground/pkg/rpc"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
@@ -402,20 +402,4 @@ func retry(attempts int, sleep time.Duration, f func() error) (err error) {
 		time.Sleep(sleep)
 	}
 	return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
-}
-
-func retryStream(attempts int, sleep time.Duration, f func() (io.ReadCloser, error)) (reader io.ReadCloser, err error) {
-	for i := 0; ; i++ {
-		reader, err = f()
-		if err == nil {
-			return
-		}
-
-		if i >= (attempts - 1) {
-			break
-		}
-
-		time.Sleep(sleep)
-	}
-	return nil, fmt.Errorf("after %d attempts, last error: %s", attempts, err)
 }
