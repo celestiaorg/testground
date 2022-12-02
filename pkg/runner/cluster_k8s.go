@@ -26,6 +26,8 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/testground/sdk-go/runtime"
 	ss "github.com/testground/sdk-go/sync"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/testground/testground/pkg/api"
 	"github.com/testground/testground/pkg/aws"
 	"github.com/testground/testground/pkg/conv"
@@ -33,13 +35,11 @@ import (
 	"github.com/testground/testground/pkg/logging"
 	"github.com/testground/testground/pkg/rpc"
 	"github.com/testground/testground/pkg/task"
-	"golang.org/x/sync/errgroup"
 
 	v1 "k8s.io/api/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/msoap/byline"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -682,11 +682,19 @@ func (c *ClusterK8sRunner) getPodLogs(ow *rpc.OutputWriter, podName string) (str
 	}
 	defer podLogs.Close()
 
-	lr := byline.NewReader(podLogs)
-	lr.MapString(func(line string) string { return podName + " | " + line })
-
 	buf := &bytes.Buffer{}
-	_, err = io.Copy(buf, lr)
+	reader := bufio.NewReaderSize(podLogs, 10000000000) // 100mb
+	for {
+		line, _, err := reader.ReadLine()
+		if err != nil {
+			if err != io.EOF {
+				ow.Errorw("err when collecting logs", "err", err)
+			}
+			break
+		}
+		buf.WriteString(podName + " | " + string(line))
+	}
+
 	if err != nil {
 		return "", fmt.Errorf("error in copy information from podLogs to buf: %v", err)
 	}
