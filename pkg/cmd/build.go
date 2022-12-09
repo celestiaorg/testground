@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/testground/testground/pkg/data"
 	"github.com/testground/testground/pkg/logging"
 
-	"github.com/BurntSushi/toml"
 	"github.com/urfave/cli/v2"
 )
 
@@ -129,75 +127,51 @@ func buildCompositionCmd(c *cli.Context) (err error) {
 		return fmt.Errorf("invalid composition file: %w", err)
 	}
 
-	err = doBuild(c, comp)
+	err = build(c, comp)
 	if err != nil {
 		return err
 	}
 
 	if c.Bool("write-artifacts") {
-		f, err := os.OpenFile(file, os.O_WRONLY|os.O_TRUNC, 0644)
-
-		defer func() {
-			cerr := f.Close()
-			if err == nil {
-				err = cerr
-			}
-		}()
-
+		err = api.WriteCompositionToFile(comp, file)
 		if err != nil {
-			return fmt.Errorf("failed to write composition to file: %w", err)
-		}
-
-		enc := toml.NewEncoder(f)
-		if err := enc.Encode(comp); err != nil {
-			return fmt.Errorf("failed to encode composition into file: %w", err)
+			return fmt.Errorf("failed to write composition file: %w", err)
 		}
 	}
 
 	return nil
 }
 
+
 func buildSingleCmd(c *cli.Context) (err error) {
 	var comp *api.Composition
 	if comp, err = createSingletonComposition(c); err != nil {
 		return err
 	}
-	err = doBuild(c, comp)
+	err = build(c, comp)
 	return err
 }
 
-func doBuild(c *cli.Context, comp *api.Composition) error {
-	var (
-		plan    = comp.Global.Plan
-		wait    = c.Bool("wait")
-		planDir string
-		sdkDir  string
-	)
-
-	ctx, cancel := context.WithCancel(ProcessContext())
-	defer cancel()
-
+func build(c *cli.Context, comp *api.Composition) error {
 	cl, cfg, err := setupClient(c)
 	if err != nil {
 		return err
 	}
 
-	// Resolve the linked SDK directory, if one has been supplied.
-	if sdk := c.String("link-sdk"); sdk != "" {
-		var err error
-		sdkDir, err = resolveSDK(cfg, sdk)
-		if err != nil {
-			return fmt.Errorf("failed to resolve linked SDK directory: %w", err)
-		}
-		logging.S().Infof("linking with sdk at: %s", sdkDir)
-	}
+	ctx, cancel := context.WithCancel(ProcessContext())
+	defer cancel()
 
 	// Resolve the test plan and its manifest.
 	var manifest *api.TestPlanManifest
-	planDir, manifest, err = resolveTestPlan(cfg, plan)
+	planDir, manifest, err := resolveTestPlan(cfg, comp.Global.Plan)
 	if err != nil {
 		return fmt.Errorf("failed to resolve test plan: %w", err)
 	}
+
+	var (
+		wait    = c.Bool("wait")
+		sdkDir  string
+	)
 
 	logging.S().Infof("test plan source at: %s", planDir)
 
@@ -218,6 +192,15 @@ func doBuild(c *cli.Context, comp *api.Composition) error {
 		req.Priority = 1
 	}
 
+	// Resolve the linked SDK directory, if one has been supplied.
+	if sdk := c.String("link-sdk"); sdk != "" {
+		var err error
+		sdkDir, err = resolveSDK(cfg, sdk)
+		if err != nil {
+			return fmt.Errorf("failed to resolve linked SDK directory: %w", err)
+		}
+		logging.S().Infof("linking with sdk at: %s", sdkDir)
+	}
 	// if there are extra sources to include for this builder, contextualize
 	// them to the plan's dir.
 	builder := strings.Replace(comp.Global.Builder, ":", "_", -1)
@@ -240,7 +223,7 @@ func doBuild(c *cli.Context, comp *api.Composition) error {
 	}
 	defer resp.Close()
 
-	id, err := client.ParseBuildResponse(resp)
+	id, err := client.ParseBuildResponse(resp, c.App.Writer)
 	switch err {
 	case nil:
 	case context.Canceled:
@@ -265,7 +248,7 @@ func doBuild(c *cli.Context, comp *api.Composition) error {
 	}
 	defer r.Close()
 
-	tsk, err := client.ParseLogsRequest(os.Stdout, r)
+	tsk, err := client.ParseLogsRequest(c.App.Writer, r)
 	if err != nil {
 		return err
 	}
@@ -312,7 +295,7 @@ func runBuildPurgeCmd(c *cli.Context) (err error) {
 	}
 	defer resp.Close()
 
-	err = client.ParseBuildPurgeResponse(resp)
+	err = client.ParseBuildPurgeResponse(resp, c.App.Writer)
 	if err != nil {
 		return err
 	}
@@ -320,3 +303,4 @@ func runBuildPurgeCmd(c *cli.Context) (err error) {
 	fmt.Printf("finished purging testplan %s for builder %s\n", plan, builder)
 	return nil
 }
+
