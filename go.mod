@@ -1,4 +1,4 @@
-module github.com/testground/testground
+module github.com/celestiaorg/testground
 
 go 1.16
 
