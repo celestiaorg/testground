@@ -863,6 +863,11 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 				"telegraf.influxdata.com/class":    "default",
 				"telegraf.influxdata.com/port":     "26660",
 				"telegraf.influxdata.com/interval": "10s",
+				"telegraf.influxdata.com/inputs": `|+ 
+							[[inputs.tail]] 
+								files = ["/var/log/**.out"]
+								data_format = "json"	
+				`,
 			},
 		},
 		Spec: v1.PodSpec{
