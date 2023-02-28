@@ -865,7 +865,7 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 				"telegraf.influxdata.com/interval": "10s",
 				"telegraf.influxdata.com/inputs": `|+ 
 							[[inputs.tail]] 
-								files = ["/var/log/**.out"]
+								files = ["/var/log/**.log"]
 								data_format = "json"	
 				`,
 			},
