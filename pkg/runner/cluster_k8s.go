@@ -338,8 +338,8 @@ func (c *ClusterK8sRunner) Run(ctx context.Context, input *api.RunInput, ow *rpc
 			}
 		}
 
+		var gracePeriod int64 = 0
 		for i := 0; i < g.Instances; i++ {
-			var gracePeriod int64 = 0
 			i := i
 			g := g
 			sem <- struct{}{}
