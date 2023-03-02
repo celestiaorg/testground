@@ -868,7 +868,8 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 						interval = "10s"
 						metric_version = 2
 				`,
-				"telegraf.influxdata.com/class": "default",
+				"telegraf.influxdata.com/class":         "default",
+				"telegraf.influxdata.com/volume-mounts": `{"efs-shared":"/var/log"}`,
 			},
 		},
 		Spec: v1.PodSpec{
