@@ -848,6 +848,9 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 	mountPropagationMode := v1.MountPropagationHostToContainer
 	sharedVolumeName := "efs-shared"
 
+	logStorageVolumeName := "local-log-storage"
+	bidirectionalPropagationMode := v1.MountPropagationBidirectional
+
 	podRequest := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podName,
@@ -869,7 +872,7 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 						metric_version = 2
 				`,
 				"telegraf.influxdata.com/class":         "default",
-				"telegraf.influxdata.com/volume-mounts": `{"efs-shared":"/var/log"}`,
+				"telegraf.influxdata.com/volume-mounts": `{"local-log-storage":"/var/log"}`,
 			},
 		},
 		Spec: v1.PodSpec{
@@ -879,6 +882,14 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 					VolumeSource: v1.VolumeSource{
 						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
 							ClaimName: "efs",
+						},
+					},
+				},
+				{
+					Name: logStorageVolumeName,
+					VolumeSource: v1.VolumeSource{
+						EmptyDir: &v1.EmptyDirVolumeSource{
+							Medium: v1.StorageMediumDefault,
 						},
 					},
 				},
@@ -937,6 +948,11 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 							Name:             sharedVolumeName,
 							MountPath:        "/outputs",
 							MountPropagation: &mountPropagationMode,
+						},
+						{
+							Name:             logStorageVolumeName,
+							MountPath:        "/var/log",
+							MountPropagation: &bidirectionalPropagationMode,
 						},
 					},
 					Resources: v1.ResourceRequirements{
