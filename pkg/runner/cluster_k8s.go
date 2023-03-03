@@ -849,7 +849,6 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 	sharedVolumeName := "efs-shared"
 
 	logStorageVolumeName := "local-log-storage"
-	bidirectionalPropagationMode := v1.MountPropagationBidirectional
 
 	podRequest := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -952,7 +951,7 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 						{
 							Name:             logStorageVolumeName,
 							MountPath:        "/var/log",
-							MountPropagation: &bidirectionalPropagationMode,
+							MountPropagation: &mountPropagationMode,
 						},
 					},
 					Resources: v1.ResourceRequirements{
