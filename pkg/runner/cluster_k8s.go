@@ -861,16 +861,31 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 				"testground.purpose":  "plan",
 			},
 			Annotations: map[string]string{"cni": defaultK8sNetworkAnnotation,
-				"k8s.v1.cni.cncf.io/networks": "weave",
+				"k8s.v1.cni.cncf.io/networks":   "weave",
+				"telegraf.influxdata.com/class": "default",
 				"telegraf.influxdata.com/inputs": `[[inputs.tail]] 
 						files = ["/var/log/**.log"]
 						data_format = "json"
+						preserve_newline = true
+						json_time_key = "ts"
+						tag_keys = [
+							"level",
+							"logger",
+							"caller",
+							"height",
+							"square width",
+							"finished (s)"
+						]
+						json_string_fields = [
+							"msg",
+							"hash",
+							"data root"
+						]
 					[[inputs.prometheus]]
 						urls = ["http://127.0.0.1:26660/metrics"]
 						interval = "10s"
 						metric_version = 2
 				`,
-				"telegraf.influxdata.com/class":         "default",
 				"telegraf.influxdata.com/volume-mounts": `{"local-log-storage":"/var/log"}`,
 			},
 		},
