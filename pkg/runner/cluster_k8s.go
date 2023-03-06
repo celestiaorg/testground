@@ -377,44 +377,6 @@ func (c *ClusterK8sRunner) Run(ctx context.Context, input *api.RunInput, ow *rpc
 		}
 	}
 
-	// we want to fetch logs even in an event of error
-	defer func() {
-		if input.TotalInstances <= 200 {
-			var gg errgroup.Group
-
-			for _, g := range input.Groups {
-				for i := 0; i < g.Instances; i++ {
-					i := i
-					g := g
-					sem <- struct{}{}
-
-					gg.Go(func() error {
-						defer func() { <-sem }()
-
-						podName := fmt.Sprintf("%s-%s-%s-%d", jobName, input.RunID, g.ID, i)
-
-						ow.Debugw("fetching logs", "pod", podName)
-						logs, err := c.getPodLogs(ow, podName)
-						if err != nil {
-							return err
-						}
-						ow.Debugw("got logs", "pod", podName, "len", len(logs))
-
-						_, err = ow.WriteProgress([]byte(logs))
-						return err
-					})
-				}
-			}
-
-			err = gg.Wait()
-			if err != nil {
-				ow.Errorw("error while fetching logs", "err", err.Error())
-			}
-
-			ow.Debugw("done getting logs")
-		}
-	}()
-
 	err = eg.Wait()
 	if err != nil {
 		runerr = err
