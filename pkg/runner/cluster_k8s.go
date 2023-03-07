@@ -828,8 +828,6 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 				"telegraf.influxdata.com/inputs": `[[inputs.tail]] 
 						files = ["/var/log/**.log"]
 						data_format = "json"
-						json_time_key = "ts"
-						json_time_format = "2023-03-07T13:54:04.350Z"
 						tag_keys = ["level", "logger", "caller", "height", "square width", "finished (s)"]
 						json_string_fields = ["msg", "hash", "data root", "peer"]
 					[[inputs.prometheus]]
