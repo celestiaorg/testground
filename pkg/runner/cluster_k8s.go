@@ -833,7 +833,7 @@ func (c *ClusterK8sRunner) createTestplanPod(ctx context.Context, podName string
 					[[inputs.prometheus]]
 						urls = ["http://127.0.0.1:26660/metrics"]
 						interval = "10s"
-						metric_version = 2
+						metric_version = 1
 				`,
 				"telegraf.influxdata.com/volume-mounts": `{"local-log-storage":"/var/log"}`,
 			},
